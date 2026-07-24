@@ -1,0 +1,19 @@
+name: BenjiJailbreak
+targets:
+  BenjiJailbreak:
+    type: application
+    platform: iOS
+    deploymentTarget: "15.0"
+    sources: [BenjiJailbreak/Sources]
+    info:
+      path: BenjiJailbreak/Info.plist
+      properties:
+        CFBundleIdentifier: com.yourname.benjijailbreak
+        CFBundleDisplayName: BenjiJailbreak
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yourname.benjijailbreak
+        CODE_SIGN_IDENTITY: iPhone Developer
+        DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
+        PROVISIONING_PROFILE_SPECIFIER: $(PROVISIONING_PROFILE)
+    dependencies: []
