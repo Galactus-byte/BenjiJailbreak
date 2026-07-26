@@ -1,4 +1,4 @@
-name: Build Benji IPA (Unsigned)
+name: Build IPA Direct (No Xcodegen)
 
 on:
   push:
@@ -7,41 +7,92 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14  # latest macOS with Xcode 15.3+
+    runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
 
-      # Install xcodegen manually (no brew)
-      - name: Download xcodegen
+      - name: Create app bundle structure
         run: |
-          curl -L https://github.com/yonaskolb/XcodeGen/releases/download/2.40.0/xcodegen.zip -o xcodegen.zip
-          unzip xcodegen.zip -d xcodegen
-          echo "$(pwd)/xcodegen" >> $GITHUB_PATH
+          mkdir -p Payload/BenjiJailbreak.app
+          mkdir -p Payload/BenjiJailbreak.app/Frameworks
 
-      - name: Generate Xcode project
-        run: xcodegen generate
-
-      - name: Build .app (unsigned)
+      - name: Compile Swift with swiftc (iOS arm64)
         run: |
-          xcodebuild -project BenjiJailbreak.xcodeproj \
-                     -scheme BenjiJailbreak \
-                     -configuration Release \
-                     -derivedDataPath build \
-                     -destination generic/platform=iOS \
-                     CODE_SIGN_IDENTITY="" \
-                     CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGNING_ALLOWED=NO \
-                     build
+          # Compile all .swift files into a single object
+          swiftc -emit-object -target arm64-apple-ios14.0 \
+            -sdk $(xcrun --sdk iphoneos --show-sdk-path) \
+            -module-name BenjiJailbreak \
+            -c BenjiJailbreak.swift -o main.o
 
-      - name: Package .ipa
+          # Link with UIKit and Foundation (dynamic)
+          ld -arch arm64 -syslibroot $(xcrun --sdk iphoneos --show-sdk-path) \
+            -o Payload/BenjiJailbreak.app/BenjiJailbreak \
+            -e _main -framework UIKit -framework Foundation \
+            -lSystem -lc++ -objc_abi_version 2 -dead_strip \
+            main.o -L/usr/lib -F/System/Library/Frameworks
+
+      - name: Create Info.plist
         run: |
-          APP_PATH="build/Build/Products/Release-iphoneos/BenjiJailbreak.app"
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
-          zip -r BenjiJailbreak.ipa Payload/
+          cat > Payload/BenjiJailbreak.app/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>BenjiJailbreak</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.benji.jailbreak</string>
+            <key>CFBundleName</key>
+            <string>BenjiJailbreak</string>
+            <key>CFBundleVersion</key>
+            <string>1.0</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0</string>
+            <key>UILaunchStoryboardName</key>
+            <string>LaunchScreen</string>
+            <key>UIRequiredDeviceCapabilities</key>
+            <array><string>arm64</string></array>
+            <key>MinimumOSVersion</key>
+            <string>14.0</string>
+          </dict>
+          </plist>
+          EOF
 
-      - name: Upload unsigned IPA
+      - name: Add entitlements (optional but needed for exploit)
+        run: |
+          cat > Payload/BenjiJailbreak.app/entitlements.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>com.apple.private.security.container-required</key>
+            <true/>
+            <key>task_for_pid-allow</key>
+            <true/>
+            <key>com.apple.private.cs.debugger</key>
+            <true/>
+            <key>dynamic-codesigning</key>
+            <true/>
+            <key>proc-info-allow</key>
+            <true/>
+            <key>rootless-allow</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Sign with ad-hoc (free identity)
+        run: |
+          # Use ad-hoc signing (no Apple ID needed)
+          /usr/bin/codesign --force --sign - \
+            --entitlements Payload/BenjiJailbreak.app/entitlements.plist \
+            Payload/BenjiJailbreak.app/BenjiJailbreak
+
+      - name: Zip into IPA
+        run: zip -r BenjiJailbreak.ipa Payload/
+
+      - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: BenjiJailbreak-unsigned.ipa
+          name: BenjiJailbreak.ipa
           path: BenjiJailbreak.ipa
