@@ -1,4 +1,4 @@
-name: Build IPA Direct (No Xcodegen)
+name: Build IPA (Auto-find sources)
 
 on:
   push:
@@ -11,28 +11,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create app bundle structure
+      - name: Find all Swift files
+        id: find_files
+        run: |
+          SWIFT_FILES=$(find . -name "*.swift" -type f | tr '\n' ' ')
+          echo "files=$SWIFT_FILES" >> $GITHUB_OUTPUT
+          echo "Found: $SWIFT_FILES"
+
+      - name: Compile and link
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          # Compile all .swift files to object files
+          mkdir -p build
+          for f in ${{ steps.find_files.outputs.files }}; do
+            swiftc -emit-object -target arm64-apple-ios14.0 -sdk "$SDK" -module-name BenjiJailbreak -c "$f" -o "build/$(basename $f .swift).o"
+          done
+          # Link all object files
+          ld -arch arm64 -syslibroot "$SDK" \
+             -o Payload/BenjiJailbreak.app/BenjiJailbreak \
+             -e _main -framework UIKit -framework SwiftUI -framework Foundation -framework IOKit \
+             -lSystem -lc++ -objc_abi_version 2 -dead_strip \
+             build/*.o -L"$SDK/usr/lib/swift" \
+             -F"$SDK/System/Library/Frameworks" -F"$SDK/System/Library/PrivateFrameworks"
+
+      - name: Create app bundle and metadata
         run: |
           mkdir -p Payload/BenjiJailbreak.app
-          mkdir -p Payload/BenjiJailbreak.app/Frameworks
-
-      - name: Compile Swift with swiftc (iOS arm64)
-        run: |
-          # Compile all .swift files into a single object
-          swiftc -emit-object -target arm64-apple-ios14.0 \
-            -sdk $(xcrun --sdk iphoneos --show-sdk-path) \
-            -module-name BenjiJailbreak \
-            -c BenjiJailbreak.swift -o main.o
-
-          # Link with UIKit and Foundation (dynamic)
-          ld -arch arm64 -syslibroot $(xcrun --sdk iphoneos --show-sdk-path) \
-            -o Payload/BenjiJailbreak.app/BenjiJailbreak \
-            -e _main -framework UIKit -framework Foundation \
-            -lSystem -lc++ -objc_abi_version 2 -dead_strip \
-            main.o -L/usr/lib -F/System/Library/Frameworks
-
-      - name: Create Info.plist
-        run: |
+          # Info.plist
           cat > Payload/BenjiJailbreak.app/Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -57,9 +62,7 @@ jobs:
           </dict>
           </plist>
           EOF
-
-      - name: Add entitlements (optional but needed for exploit)
-        run: |
+          # Entitlements
           cat > Payload/BenjiJailbreak.app/entitlements.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -81,15 +84,10 @@ jobs:
           </plist>
           EOF
 
-      - name: Sign with ad-hoc (free identity)
+      - name: Sign and package
         run: |
-          # Use ad-hoc signing (no Apple ID needed)
-          /usr/bin/codesign --force --sign - \
-            --entitlements Payload/BenjiJailbreak.app/entitlements.plist \
-            Payload/BenjiJailbreak.app/BenjiJailbreak
-
-      - name: Zip into IPA
-        run: zip -r BenjiJailbreak.ipa Payload/
+          /usr/bin/codesign --force --sign - --entitlements Payload/BenjiJailbreak.app/entitlements.plist Payload/BenjiJailbreak.app/BenjiJailbreak
+          zip -r BenjiJailbreak.ipa Payload/
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
