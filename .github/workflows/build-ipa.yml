@@ -1,4 +1,4 @@
-name: Build IPA (Auto-find sources)
+name: Build IPA (Auto-find sources, fixed IOKit)
 
 on:
   push:
@@ -18,26 +18,35 @@ jobs:
           echo "files=$SWIFT_FILES" >> $GITHUB_OUTPUT
           echo "Found: $SWIFT_FILES"
 
-      - name: Compile and link
+      - name: Compile and link with full SDK frameworks
         run: |
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          # Compile all .swift files to object files
-          mkdir -p build
+          mkdir -p build Payload/BenjiJailbreak.app
+
+          # Compile each .swift file with framework search paths
           for f in ${{ steps.find_files.outputs.files }}; do
-            swiftc -emit-object -target arm64-apple-ios14.0 -sdk "$SDK" -module-name BenjiJailbreak -c "$f" -o "build/$(basename $f .swift).o"
+            swiftc -emit-object \
+                   -target arm64-apple-ios14.0 \
+                   -sdk "$SDK" \
+                   -F "$SDK/System/Library/Frameworks" \
+                   -F "$SDK/System/Library/PrivateFrameworks" \
+                   -module-name BenjiJailbreak \
+                   -c "$f" -o "build/$(basename $f .swift).o"
           done
-          # Link all object files
+
+          # Link with all required frameworks and Swift runtime
           ld -arch arm64 -syslibroot "$SDK" \
              -o Payload/BenjiJailbreak.app/BenjiJailbreak \
-             -e _main -framework UIKit -framework SwiftUI -framework Foundation -framework IOKit \
+             -e _main \
+             -framework UIKit -framework SwiftUI -framework Foundation -framework IOKit \
              -lSystem -lc++ -objc_abi_version 2 -dead_strip \
-             build/*.o -L"$SDK/usr/lib/swift" \
-             -F"$SDK/System/Library/Frameworks" -F"$SDK/System/Library/PrivateFrameworks"
+             build/*.o \
+             -L"$SDK/usr/lib/swift" \
+             -F"$SDK/System/Library/Frameworks" \
+             -F"$SDK/System/Library/PrivateFrameworks"
 
-      - name: Create app bundle and metadata
+      - name: Create Info.plist and Entitlements
         run: |
-          mkdir -p Payload/BenjiJailbreak.app
-          # Info.plist
           cat > Payload/BenjiJailbreak.app/Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -62,7 +71,7 @@ jobs:
           </dict>
           </plist>
           EOF
-          # Entitlements
+
           cat > Payload/BenjiJailbreak.app/entitlements.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
