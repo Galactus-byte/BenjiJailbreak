@@ -16,7 +16,8 @@ let package = Package(
                 .linkedFramework("UIKit"),
                 .linkedFramework("SwiftUI"),
                 .linkedFramework("Foundation"),
-                .linkedFramework("IOKit")
+                .linkedFramework("IOKit"),
+                .linkedFramework("Accessibility")   // <- add this
             ]
         )
     ]
