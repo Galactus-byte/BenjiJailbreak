@@ -1,0 +1,41 @@
+name: Build Unsigned Benji IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install xcodegen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Build .app (unsigned)
+        run: |
+          xcodebuild -project BenjiJailbreak.xcodeproj \
+                     -scheme BenjiJailbreak \
+                     -configuration Release \
+                     -derivedDataPath build \
+                     -destination generic/platform=iOS \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO \
+                     build
+      - name: Package .ipa (unsigned)
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/BenjiJailbreak.app"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r BenjiJailbreak.ipa Payload/
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: BenjiJailbreak-unsigned.ipa
+          path: BenjiJailbreak.ipa

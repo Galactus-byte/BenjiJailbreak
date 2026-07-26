@@ -1,19 +1,23 @@
 name: BenjiJailbreak
+options:
+  bundleIdPrefix: com.benji
+  deploymentTarget:
+    iOS: 14.0
 targets:
   BenjiJailbreak:
     type: application
     platform: iOS
-    deploymentTarget: "15.0"
-    sources: [BenjiJailbreak/Sources]
-    info:
-      path: BenjiJailbreak/Info.plist
-      properties:
-        CFBundleIdentifier: com.yourname.benjijailbreak
-        CFBundleDisplayName: BenjiJailbreak
+    sources: [BenjiJailbreak]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.yourname.benjijailbreak
+        PRODUCT_BUNDLE_IDENTIFIER: com.benji.jailbreak
+        CODE_SIGN_ENTITLEMENTS: Benji.entitlements
         CODE_SIGN_IDENTITY: iPhone Developer
-        DEVELOPMENT_TEAM: $(DEVELOPMENT_TEAM)
-        PROVISIONING_PROFILE_SPECIFIER: $(PROVISIONING_PROFILE)
-    dependencies: []
+        DEVELOPMENT_TEAM: YOUR_TEAM_ID
+    entitlements:
+      - com.apple.private.security.container-required: true
+      - task_for_pid-allow: true
+      - com.apple.private.cs.debugger: true
+      - dynamic-codesigning: true
+      - proc-info-allow: true
+      - rootless-allow: true

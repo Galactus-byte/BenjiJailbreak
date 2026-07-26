@@ -1,0 +1,21 @@
+{
+  "name": "BenjiJailbreak Dev",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/swift:1": {
+      "version": "5.9"
+    },
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+  "postCreateCommand": "sudo apt update && sudo apt install -y clang lld binutils git && swift --version",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "sswg.swift-lang",
+        "vadimcn.vscode-lldb"
+      ]
+    }
+  },
+  "forwardPorts": [8080],
+  "remoteUser": "vscode"
+}
