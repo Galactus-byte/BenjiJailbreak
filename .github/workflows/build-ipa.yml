@@ -7,17 +7,12 @@ on:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: macos-14  # latest macOS with Xcode 15.3+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Xcode
-        uses: maxim-lobanov/setup-xcode@v1
-        with:
-          xcode-version: latest-stable
-
-      # Download xcodegen binary directly (no brew)
-      - name: Install xcodegen
+      # Install xcodegen manually (no brew)
+      - name: Download xcodegen
         run: |
           curl -L https://github.com/yonaskolb/XcodeGen/releases/download/2.40.0/xcodegen.zip -o xcodegen.zip
           unzip xcodegen.zip -d xcodegen
@@ -38,7 +33,7 @@ jobs:
                      CODE_SIGNING_ALLOWED=NO \
                      build
 
-      - name: Package .ipa (unsigned)
+      - name: Package .ipa
         run: |
           APP_PATH="build/Build/Products/Release-iphoneos/BenjiJailbreak.app"
           mkdir -p Payload
