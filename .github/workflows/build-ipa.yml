@@ -11,11 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download xcodegen (no brew)
+      - name: Download and install xcodegen
         run: |
           curl -L https://github.com/yonaskolb/XcodeGen/releases/download/2.40.0/xcodegen.zip -o xcodegen.zip
           unzip xcodegen.zip -d xcodegen
-          echo "$(pwd)/xcodegen" >> $GITHUB_PATH
+          chmod +x xcodegen/bin/xcodegen
+          echo "$(pwd)/xcodegen/bin" >> $GITHUB_PATH
 
       - name: Generate Xcode project
         run: xcodegen generate
