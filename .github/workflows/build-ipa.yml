@@ -1,4 +1,4 @@
-name: Build IPA Direct (swiftc)
+name: Build IPA (SPM + xcodebuild)
 
 on:
   push:
@@ -11,34 +11,46 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Compile and link with swiftc/ld
+      - name: Create Package.swift
+        run: |
+          cat > Package.swift <<'EOF'
+          // swift-tools-version:5.9
+          import PackageDescription
+          let package = Package(
+              name: "BenjiJailbreak",
+              platforms: [.iOS(.v14)],
+              products: [
+                  .executable(name: "BenjiJailbreak", targets: ["BenjiJailbreak"])
+              ],
+              targets: [
+                  .executableTarget(
+                      name: "BenjiJailbreak",
+                      path: "sources",
+                      linkerSettings: [
+                          .linkedFramework("UIKit"),
+                          .linkedFramework("SwiftUI"),
+                          .linkedFramework("Foundation"),
+                          .linkedFramework("IOKit"),
+                          .linkedFramework("Accessibility")
+                      ]
+                  )
+              ]
+          )
+          EOF
+
+      - name: Build with SPM (iOS)
         run: |
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          FRAMEWORK_PATH="-F $SDK/System/Library/Frameworks -F $SDK/System/Library/PrivateFrameworks"
-          
-          # Find all .swift files inside sources/
-          SWIFT_FILES=$(find sources -name "*.swift" -type f)
-          mkdir -p build Payload/BenjiJailbreak.app
+          swift build -c release \
+            --triple arm64-apple-ios14.0 \
+            -Xswiftc -sdk -Xswiftc "$SDK" \
+            -Xswiftc -F -Xswiftc "$SDK/System/Library/Frameworks" \
+            -Xswiftc -F -Xswiftc "$SDK/System/Library/PrivateFrameworks"
 
-          # Compile each .swift with explicit framework search paths
-          for f in $SWIFT_FILES; do
-            swiftc -emit-object -target arm64-apple-ios14.0 \
-                   -sdk "$SDK" $FRAMEWORK_PATH \
-                   -module-name BenjiJailbreak \
-                   -c "$f" -o "build/$(basename $f .swift).o"
-          done
-
-          # Link with same framework paths
-          ld -arch arm64 -syslibroot "$SDK" \
-             -o Payload/BenjiJailbreak.app/BenjiJailbreak \
-             -e _main \
-             -framework UIKit -framework SwiftUI -framework Foundation -framework IOKit -framework Accessibility \
-             -lSystem -lc++ -objc_abi_version 2 -dead_strip \
-             build/*.o \
-             -L"$SDK/usr/lib/swift" $FRAMEWORK_PATH
-
-      - name: Create Info.plist and entitlements
+      - name: Package .app and sign
         run: |
+          mkdir -p Payload/BenjiJailbreak.app
+          cp .build/arm64-apple-ios14.0/release/BenjiJailbreak Payload/BenjiJailbreak.app/
           cat > Payload/BenjiJailbreak.app/Info.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -55,7 +67,6 @@ jobs:
           </dict>
           </plist>
           EOF
-
           cat > Payload/BenjiJailbreak.app/entitlements.plist <<EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -70,9 +81,6 @@ jobs:
           </dict>
           </plist>
           EOF
-
-      - name: Sign and package
-        run: |
           codesign --force --sign - --entitlements Payload/BenjiJailbreak.app/entitlements.plist Payload/BenjiJailbreak.app/BenjiJailbreak
           zip -r BenjiJailbreak.ipa Payload/
 
