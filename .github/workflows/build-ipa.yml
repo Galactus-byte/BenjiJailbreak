@@ -1,4 +1,4 @@
-name: Build IPA (UIKit, no SwiftUI)
+name: Build IPA (UIKit, with IOKit)
 
 on:
   push:
@@ -14,11 +14,15 @@ jobs:
       - name: Compile and link with swiftc/ld
         run: |
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          FRAMEWORKS="-F $SDK/System/Library/Frameworks -F $SDK/System/Library/PrivateFrameworks"
           SWIFT_FILES=$(find sources -name "*.swift" -type f)
           mkdir -p build Payload/BenjiJailbreak.app
 
           for f in $SWIFT_FILES; do
-            swiftc -emit-object -target arm64-apple-ios14.0 -sdk "$SDK" -F "$SDK/System/Library/Frameworks" -module-name BenjiJailbreak -c "$f" -o "build/$(basename $f .swift).o"
+            swiftc -emit-object -target arm64-apple-ios14.0 \
+                   -sdk "$SDK" $FRAMEWORKS \
+                   -module-name BenjiJailbreak \
+                   -c "$f" -o "build/$(basename $f .swift).o"
           done
 
           ld -arch arm64 -syslibroot "$SDK" \
@@ -27,8 +31,7 @@ jobs:
              -framework UIKit -framework Foundation -framework IOKit \
              -lSystem -lc++ -objc_abi_version 2 -dead_strip \
              build/*.o \
-             -L"$SDK/usr/lib/swift" \
-             -F"$SDK/System/Library/Frameworks"
+             -L"$SDK/usr/lib/swift" $FRAMEWORKS
 
       - name: Create Info.plist and entitlements
         run: |
