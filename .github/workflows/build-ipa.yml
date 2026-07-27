@@ -14,23 +14,28 @@ jobs:
       - name: Compile and link with swiftc/ld
         run: |
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          # Only look for .swift files inside the "sources" folder
+          FRAMEWORK_PATH="-F $SDK/System/Library/Frameworks -F $SDK/System/Library/PrivateFrameworks"
+          
+          # Find all .swift files inside sources/
           SWIFT_FILES=$(find sources -name "*.swift" -type f)
           mkdir -p build Payload/BenjiJailbreak.app
 
+          # Compile each .swift with explicit framework search paths
           for f in $SWIFT_FILES; do
-            swiftc -emit-object -target arm64-apple-ios14.0 -sdk "$SDK" -module-name BenjiJailbreak -c "$f" -o "build/$(basename $f .swift).o"
+            swiftc -emit-object -target arm64-apple-ios14.0 \
+                   -sdk "$SDK" $FRAMEWORK_PATH \
+                   -module-name BenjiJailbreak \
+                   -c "$f" -o "build/$(basename $f .swift).o"
           done
 
+          # Link with same framework paths
           ld -arch arm64 -syslibroot "$SDK" \
              -o Payload/BenjiJailbreak.app/BenjiJailbreak \
              -e _main \
              -framework UIKit -framework SwiftUI -framework Foundation -framework IOKit -framework Accessibility \
              -lSystem -lc++ -objc_abi_version 2 -dead_strip \
              build/*.o \
-             -L"$SDK/usr/lib/swift" \
-             -F"$SDK/System/Library/Frameworks" \
-             -F"$SDK/System/Library/PrivateFrameworks"
+             -L"$SDK/usr/lib/swift" $FRAMEWORK_PATH
 
       - name: Create Info.plist and entitlements
         run: |
