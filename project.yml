@@ -7,7 +7,7 @@ targets:
   BenjiJailbreak:
     type: application
     platform: iOS
-    sources: [sources]   # your Swift files are here
+    sources: [sources]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.benji.jailbreak
@@ -17,11 +17,11 @@ targets:
     dependencies:
       - framework: UIKit
       - framework: Foundation
-      - framework: IOKit   # explicitly added
+      - framework: IOKit
     entitlements:
-      - com.apple.private.security.container-required: true
-      - task_for_pid-allow: true
-      - com.apple.private.cs.debugger: true
-      - dynamic-codesigning: true
-      - proc-info-allow: true
-      - rootless-allow: true
+      com.apple.private.security.container-required: true
+      task_for_pid-allow: true
+      com.apple.private.cs.debugger: true
+      dynamic-codesigning: true
+      proc-info-allow: true
+      rootless-allow: true
