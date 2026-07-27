@@ -14,16 +14,14 @@ jobs:
       - name: Compile and link with swiftc/ld
         run: |
           SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          # Find all .swift files (including subfolders)
-          SWIFT_FILES=$(find . -name "*.swift" -type f)
+          # Only look for .swift files inside the "sources" folder
+          SWIFT_FILES=$(find sources -name "*.swift" -type f)
           mkdir -p build Payload/BenjiJailbreak.app
 
-          # Compile each .swift to .o
           for f in $SWIFT_FILES; do
             swiftc -emit-object -target arm64-apple-ios14.0 -sdk "$SDK" -module-name BenjiJailbreak -c "$f" -o "build/$(basename $f .swift).o"
           done
 
-          # Link all objects
           ld -arch arm64 -syslibroot "$SDK" \
              -o Payload/BenjiJailbreak.app/BenjiJailbreak \
              -e _main \
