@@ -1,4 +1,4 @@
-name: Build IPA (Xcodegen)
+name: Build IPA Direct (swiftc)
 
 on:
   push:
@@ -11,33 +11,66 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download and install xcodegen
+      - name: Compile and link with swiftc/ld
         run: |
-          curl -L https://github.com/yonaskolb/XcodeGen/releases/download/2.40.0/xcodegen.zip -o xcodegen.zip
-          unzip xcodegen.zip -d xcodegen
-          chmod +x xcodegen/bin/xcodegen
-          echo "$(pwd)/xcodegen/bin" >> $GITHUB_PATH
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          # Find all .swift files (including subfolders)
+          SWIFT_FILES=$(find . -name "*.swift" -type f)
+          mkdir -p build Payload/BenjiJailbreak.app
 
-      - name: Generate Xcode project
-        run: xcodegen generate
+          # Compile each .swift to .o
+          for f in $SWIFT_FILES; do
+            swiftc -emit-object -target arm64-apple-ios14.0 -sdk "$SDK" -module-name BenjiJailbreak -c "$f" -o "build/$(basename $f .swift).o"
+          done
 
-      - name: Build .app (unsigned)
+          # Link all objects
+          ld -arch arm64 -syslibroot "$SDK" \
+             -o Payload/BenjiJailbreak.app/BenjiJailbreak \
+             -e _main \
+             -framework UIKit -framework SwiftUI -framework Foundation -framework IOKit -framework Accessibility \
+             -lSystem -lc++ -objc_abi_version 2 -dead_strip \
+             build/*.o \
+             -L"$SDK/usr/lib/swift" \
+             -F"$SDK/System/Library/Frameworks" \
+             -F"$SDK/System/Library/PrivateFrameworks"
+
+      - name: Create Info.plist and entitlements
         run: |
-          xcodebuild -project BenjiJailbreak.xcodeproj \
-                     -scheme BenjiJailbreak \
-                     -configuration Release \
-                     -derivedDataPath build \
-                     -destination generic/platform=iOS \
-                     CODE_SIGN_IDENTITY="" \
-                     CODE_SIGNING_REQUIRED=NO \
-                     CODE_SIGNING_ALLOWED=NO \
-                     build
+          cat > Payload/BenjiJailbreak.app/Info.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key><string>BenjiJailbreak</string>
+            <key>CFBundleIdentifier</key><string>com.benji.jailbreak</string>
+            <key>CFBundleName</key><string>BenjiJailbreak</string>
+            <key>CFBundleVersion</key><string>1.0</string>
+            <key>CFBundleShortVersionString</key><string>1.0</string>
+            <key>UILaunchStoryboardName</key><string>LaunchScreen</string>
+            <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
+            <key>MinimumOSVersion</key><string>14.0</string>
+          </dict>
+          </plist>
+          EOF
 
-      - name: Package .ipa
+          cat > Payload/BenjiJailbreak.app/entitlements.plist <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>com.apple.private.security.container-required</key><true/>
+            <key>task_for_pid-allow</key><true/>
+            <key>com.apple.private.cs.debugger</key><true/>
+            <key>dynamic-codesigning</key><true/>
+            <key>proc-info-allow</key><true/>
+            <key>rootless-allow</key><true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Sign and package
         run: |
-          APP_PATH="build/Build/Products/Release-iphoneos/BenjiJailbreak.app"
-          mkdir -p Payload
-          cp -r "$APP_PATH" Payload/
+          codesign --force --sign - --entitlements Payload/BenjiJailbreak.app/entitlements.plist Payload/BenjiJailbreak.app/BenjiJailbreak
           zip -r BenjiJailbreak.ipa Payload/
 
       - name: Upload IPA
