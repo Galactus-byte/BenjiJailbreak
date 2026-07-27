@@ -1,4 +1,4 @@
-name: Build IPA with SPM (IOKit fixed)
+name: Build IPA (XcodeGen + xcodebuild)
 
 on:
   push:
@@ -11,74 +11,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create Package.swift
+      - name: Install xcodegen
         run: |
-          cat > Package.swift <<'EOF'
-          // swift-tools-version:5.9
-          import PackageDescription
-          let package = Package(
-              name: "BenjiJailbreak",
-              platforms: [.iOS(.v14)],
-              products: [
-                  .executable(name: "BenjiJailbreak", targets: ["BenjiJailbreak"])
-              ],
-              targets: [
-                  .executableTarget(
-                      name: "BenjiJailbreak",
-                      path: "sources",
-                      linkerSettings: [
-                          .linkedFramework("UIKit"),
-                          .linkedFramework("Foundation"),
-                          .linkedFramework("IOKit")
-                      ]
-                  )
-              ]
-          )
-          EOF
+          brew install xcodegen
 
-      - name: Build with SPM for iOS
-        run: |
-          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
-          swift build -c release \
-            --triple arm64-apple-ios14.0 \
-            -Xswiftc -sdk -Xswiftc "$SDK" \
-            -Xswiftc -F -Xswiftc "$SDK/System/Library/Frameworks" \
-            -Xswiftc -F -Xswiftc "$SDK/System/Library/PrivateFrameworks"
+      - name: Generate Xcode project
+        run: xcodegen generate
 
-      - name: Package .app and sign
+      - name: Build with xcodebuild (unsigned)
         run: |
-          mkdir -p Payload/BenjiJailbreak.app
-          cp .build/arm64-apple-ios14.0/release/BenjiJailbreak Payload/BenjiJailbreak.app/
-          cat > Payload/BenjiJailbreak.app/Info.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>CFBundleExecutable</key><string>BenjiJailbreak</string>
-            <key>CFBundleIdentifier</key><string>com.benji.jailbreak</string>
-            <key>CFBundleName</key><string>BenjiJailbreak</string>
-            <key>CFBundleVersion</key><string>1.0</string>
-            <key>CFBundleShortVersionString</key><string>1.0</string>
-            <key>UIRequiredDeviceCapabilities</key><array><string>arm64</string></array>
-            <key>MinimumOSVersion</key><string>14.0</string>
-          </dict>
-          </plist>
-          EOF
-          cat > Payload/BenjiJailbreak.app/entitlements.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-            <key>com.apple.private.security.container-required</key><true/>
-            <key>task_for_pid-allow</key><true/>
-            <key>com.apple.private.cs.debugger</key><true/>
-            <key>dynamic-codesigning</key><true/>
-            <key>proc-info-allow</key><true/>
-            <key>rootless-allow</key><true/>
-          </dict>
-          </plist>
-          EOF
-          codesign --force --sign - --entitlements Payload/BenjiJailbreak.app/entitlements.plist Payload/BenjiJailbreak.app/BenjiJailbreak
+          xcodebuild -project BenjiJailbreak.xcodeproj \
+                     -scheme BenjiJailbreak \
+                     -configuration Release \
+                     -derivedDataPath build \
+                     -destination generic/platform=iOS \
+                     CODE_SIGN_IDENTITY="" \
+                     CODE_SIGNING_REQUIRED=NO \
+                     CODE_SIGNING_ALLOWED=NO \
+                     build
+
+      - name: Package .ipa
+        run: |
+          APP_PATH="build/Build/Products/Release-iphoneos/BenjiJailbreak.app"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
           zip -r BenjiJailbreak.ipa Payload/
 
       - name: Upload IPA

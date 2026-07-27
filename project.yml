@@ -1,4 +1,3 @@
-
 name: BenjiJailbreak
 options:
   bundleIdPrefix: com.benji
@@ -8,7 +7,7 @@ targets:
   BenjiJailbreak:
     type: application
     platform: iOS
-    sources: [sources]   # <-- points to your "sources" folder
+    sources: [sources]   # your Swift files are here
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.benji.jailbreak
@@ -17,10 +16,8 @@ targets:
         CODE_SIGNING_ALLOWED: NO
     dependencies:
       - framework: UIKit
-      - framework: SwiftUI
       - framework: Foundation
-      - framework: IOKit
-      - framework: Accessibility
+      - framework: IOKit   # explicitly added
     entitlements:
       - com.apple.private.security.container-required: true
       - task_for_pid-allow: true
