@@ -7,7 +7,8 @@ targets:
   BenjiJailbreak:
     type: application
     platform: iOS
-    sources: [sources]
+    sources:
+      - path: sources   # explicitly set path
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.benji.jailbreak
